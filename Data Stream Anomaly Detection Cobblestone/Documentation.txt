@@ -1,0 +1,215 @@
+Project Documentation: Real-Time Anomaly Detection in a Data Stream
+Overview
+This project implements a real-time anomaly detection system for a continuous data stream. It simulates a stream of floating-point numbers that could represent various metrics (e.g., financial transactions or system metrics) and identifies unusual patterns such as spikes or deviations from the norm. The primary goal is to flag data points that represent anomalies in real-time, allowing for timely insights into abnormal behaviors in the data.
+
+Project Structure
+The project is organized into multiple Python modules for modularity and readability:
+anomaly_detection_project/
+├── README.md
+├── requirements.txt
+├── main.py
+├── src/
+│   ├── data_stream.py
+│   ├── anomaly_detector.py
+│   └── visualization.py
+└── tests/
+    └── test_anomaly_detector.py
+Requirements
+Python Version: 3.x
+Libraries: numpy for numerical calculations and matplotlib for visualization.
+Installation: Run pip install -r requirements.txt to install dependencies.
+Algorithm Explanation
+Z-Score Anomaly Detection
+Chosen Algorithm: Z-score-based anomaly detection
+
+Rationale: The Z-score method is effective for real-time, univariate anomaly detection due to its simplicity and low computational overhead. It provides an easy way to detect how far a data point deviates from the rolling mean of recent data, allowing it to identify "outliers" that lie beyond a specified threshold.
+
+Effectiveness:
+
+Adaptable: The algorithm uses a rolling window to dynamically update the mean and standard deviation, making it capable of adapting to gradual changes in the data (concept drift).
+Efficiency: By calculating Z-scores on a small, recent subset of data (rolling window), the algorithm maintains low memory and computation requirements, suitable for real-time applications.
+Threshold Setting: An anomaly is flagged if the Z-score exceeds a set threshold (e.g., 3.0), which helps in filtering out regular variations while capturing significant deviations.
+Detailed Code Documentation
+Each module is well-documented to explain its purpose and key components.
+
+1. main.py
+Purpose: The entry point of the project. It initializes the data stream, the anomaly detector, and the real-time visualization.
+# main.py
+from src.data_stream import data_stream_simulation
+from src.anomaly_detector import ZScoreAnomalyDetector
+from src.visualization import real_time_plot
+
+if __name__ == "__main__":
+    real_time_plot()
+Explanation: Imports necessary functions and classes. Calls real_time_plot() to start data streaming and visualization.
+2. src/data_stream.py
+Purpose: Simulates a continuous data stream with periodic patterns and random noise. Generates occasional anomalies to mimic real-world data behavior.
+
+Code with Documentation:
+# src/data_stream.py
+import numpy as np
+
+# Parameters for data stream generation
+STREAM_LENGTH = 1000       # Total number of data points to generate
+NOISE_LEVEL = 0.5          # Standard deviation of random noise added to the stream
+SEASONAL_AMPLITUDE = 5     # Amplitude for the sinusoidal seasonal pattern
+SEASONAL_PERIOD = 50       # Period of the seasonal sinusoidal pattern
+
+def data_stream_simulation():
+    """
+    Generates a synthetic data stream with periodic patterns, random noise, and occasional anomalies.
+    
+    Yields:
+        float: The next data point in the simulated data stream.
+    """
+    for i in range(STREAM_LENGTH):
+        # Generate a sinusoidal seasonal pattern and add random noise
+        seasonal_value = SEASONAL_AMPLITUDE * np.sin(2 * np.pi * i / SEASONAL_PERIOD)
+        noise = np.random.normal(0, NOISE_LEVEL)
+        
+        # Occasionally inject an anomaly with a higher value
+        if np.random.rand() < 0.02:  # 2% chance of anomaly
+            yield seasonal_value + noise + np.random.uniform(10, 20)
+        else:
+            yield seasonal_value + noise
+Explanation:
+Generates a sinusoidal pattern with added noise, emulating periodic variations in real data.
+Injects anomalies with a 2% probability to simulate unexpected spikes.
+3. src/anomaly_detector.py
+Purpose: Implements the Z-score anomaly detection method using a rolling window to adapt to changes in the data stream.
+
+Code with Documentation:
+# src/anomaly_detector.py
+import numpy as np
+from collections import deque
+
+class ZScoreAnomalyDetector:
+    """
+    Detects anomalies in a data stream based on the Z-score method.
+    
+    Attributes:
+        window_size (int): Number of recent data points used to calculate mean and std deviation.
+        threshold (float): Z-score threshold above which a data point is flagged as an anomaly.
+    """
+    def __init__(self, window_size=50, threshold=3.0):
+        """
+        Initializes the anomaly detector with a specified window size and threshold.
+        
+        Args:
+            window_size (int): Number of data points for the rolling window.
+            threshold (float): Z-score threshold for anomaly detection.
+        """
+        self.window_size = window_size
+        self.threshold = threshold
+        self.data_window = deque(maxlen=window_size)
+    
+    def detect(self, new_value):
+        """
+        Determines if a new data point is an anomaly.
+        
+        Args:
+            new_value (float): The new data point to evaluate.
+        
+        Returns:
+            bool: True if the new value is an anomaly, False otherwise.
+        """
+        # Add new value to the rolling window
+        self.data_window.append(new_value)
+        
+        # Wait until the window is full
+        if len(self.data_window) < self.window_size:
+            return False  # Insufficient data
+        
+        # Calculate the mean and standard deviation of the rolling window
+        mean = np.mean(self.data_window)
+        std_dev = np.std(self.data_window)
+        
+        # Handle cases where the standard deviation is zero
+        if std_dev == 0:
+            return False
+        
+        # Calculate the Z-score
+        z_score = (new_value - mean) / std_dev
+        return abs(z_score) > self.threshold
+Explanation:
+__init__: Initializes the rolling window and threshold.
+detect: Calculates the Z-score for a new data point and flags it as an anomaly if the Z-score exceeds the threshold.
+4. src/visualization.py
+Purpose: Provides real-time visualization of the data stream and highlights detected anomalies in red.
+
+Code with Documentation:
+# src/visualization.py
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from .data_stream import data_stream_simulation
+from .anomaly_detector import ZScoreAnomalyDetector
+
+# Parameters for visualization
+WINDOW_SIZE = 50
+ANOMALY_THRESHOLD = 3.0
+
+def real_time_plot():
+    """
+    Displays a real-time plot of the data stream with detected anomalies highlighted.
+    """
+    # Initialize data stream and anomaly detector
+    data_stream = data_stream_simulation()
+    anomaly_detector = ZScoreAnomalyDetector(WINDOW_SIZE, ANOMALY_THRESHOLD)
+    
+    # Data lists for plotting
+    x_data, y_data, anomalies_x, anomalies_y = [], [], [], []
+    
+    # Set up the plot
+    fig, ax = plt.subplots()
+    ax.set_ylim(-10, 20)
+    line, = ax.plot([], [], lw=1, label="Data Stream")
+    scatter = ax.scatter([], [], color='red', label="Anomalies")
+    ax.legend()
+
+    def init():
+        """Initialize the plot."""
+        line.set_data([], [])
+        scatter.set_offsets([])
+        return line, scatter
+    
+    def update(frame):
+        """
+        Updates the plot with new data from the stream.
+        
+        Args:
+            frame (int): The current frame number.
+        
+        Returns:
+            tuple: Updated plot elements.
+        """
+        # Get the next data point
+        new_value = next(data_stream)
+        x_data.append(frame)
+        y_data.append(new_value)
+        
+        # Check if the new point is an anomaly
+        is_anomaly = anomaly_detector.detect(new_value)
+        if is_anomaly:
+            anomalies_x.append(frame)
+            anomalies_y.append(new_value)
+        
+        # Update the plot with new data and anomalies
+        line.set_data(x_data, y_data)
+        scatter.set_offsets(np.c_[anomalies_x, anomalies_y])
+        
+        return line, scatter
+    
+    ani = animation.FuncAnimation(fig, update, frames=range(1000),
+                                  init_func=init, blit=True, interval=50)
+    plt.show()
+Explanation:
+real_time_plot: Sets up real-time visualization using matplotlib.animation. Flags detected anomalies in red on the plot.
+update function: Adds new data to the plot frame-by-frame, marking anomalies based on the detector’s output.
+5. tests/test_anomaly_detector.py
+Purpose: Tests the functionality of ZScoreAnomalyDetector to ensure accuracy and robustness.
+
+Key Test Cases:
+
+Constant Stream Test: Checks that no anomalies are detected in a constant data stream.
+Spike Test: Verifies that a sudden spike is correctly flagged as an anomaly.
+Zero Division Test: Ensures the detector handles cases with a standard deviation of zero without errors.
